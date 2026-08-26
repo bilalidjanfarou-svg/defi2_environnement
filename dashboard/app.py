@@ -18,6 +18,53 @@ st.set_page_config(
     layout="wide",
 )
 
+st.markdown("""
+<style>
+/* En-tete avec bandeau degrade */
+.main-header {
+    background: linear-gradient(135deg, #1b4332 0%, #2ca02c 50%, #f4a261 100%);
+    padding: 2rem 2.5rem;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+    color: white;
+}
+.main-header h1 {
+    color: white;
+    margin: 0;
+    font-size: 2.1rem;
+}
+.main-header p {
+    color: #e8f5e9;
+    margin: 0.3rem 0 0 0;
+    font-size: 1rem;
+}
+
+/* Cartes metriques */
+div[data-testid="stMetric"] {
+    background-color: #f8f9f5;
+    border: 1px solid #d4e0d0;
+    border-left: 4px solid #2ca02c;
+    border-radius: 8px;
+    padding: 1rem 1.2rem;
+}
+div[data-testid="stMetricLabel"] {
+    font-weight: 600;
+    color: #4a4a4a;
+}
+
+/* Onglets */
+button[data-baseweb="tab"] {
+    font-size: 1.02rem;
+    font-weight: 600;
+}
+
+/* Encarts info */
+div[data-testid="stAlert"] {
+    border-radius: 8px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 
 @st.cache_data
 def charger_donnees():
@@ -34,8 +81,12 @@ indicateurs, temperatures, ges, forets, kpis = charger_donnees()
 # -----------------------------------------------------------------
 # En-tete
 # -----------------------------------------------------------------
-st.title("🌍 Energie & transition ecologique au Togo")
-st.caption("Defi 2 Environnement - Laboratoire d'IA du Togo")
+st.markdown("""
+<div class="main-header">
+    <h1>🌍 Energie & transition ecologique au Togo</h1>
+    <p>Defi 2 Environnement — Laboratoire d'IA du Togo</p>
+</div>
+""", unsafe_allow_html=True)
 
 onglets = st.tabs([
     "⚡ Electricite",
