@@ -57,9 +57,28 @@ div[data-testid="stMetricLabel"] {
 }
 
 /* Onglets */
+div[data-baseweb="tab-list"] {
+    gap: 4px;
+    background-color: #f0f2e9;
+    padding: 6px;
+    border-radius: 10px;
+}
 button[data-baseweb="tab"] {
-    font-size: 1.02rem;
+    font-size: 1.0rem;
     font-weight: 600;
+    color: #4a4a4a;
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+}
+button[data-baseweb="tab"]:hover {
+    background-color: #e0e8dc;
+}
+button[data-baseweb="tab"][aria-selected="true"] {
+    background-color: #2ca02c;
+    color: white !important;
+}
+div[data-baseweb="tab-highlight"] {
+    display: none;
 }
 
 /* Encarts info */
