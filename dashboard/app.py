@@ -4,6 +4,10 @@ Tableau de bord interactif - Defi 2 Environnement (Togo AI Lab).
 Usage :
     streamlit run dashboard/app.py
 """
+
+import folium
+from shapely import wkt
+from streamlit_folium import st_folium
 from pathlib import Path
 
 import pandas as pd
@@ -77,6 +81,29 @@ def charger_donnees():
 
 
 indicateurs, temperatures, ges, forets, kpis = charger_donnees()
+
+# -----------------------------------------------------------------
+# Sidebar - Filtres
+# -----------------------------------------------------------------
+st.sidebar.header("🔎 Filtres")
+
+toutes_regions = sorted(forets["region_nom_bdd"].unique())
+regions_selectionnees = st.sidebar.multiselect(
+    "Region (forets)", options=toutes_regions, default=toutes_regions,
+)
+
+toutes_villes = sorted(temperatures["villes"].unique())
+villes_selectionnees = st.sidebar.multiselect(
+    "Ville (temperatures)", options=toutes_villes, default=toutes_villes,
+)
+
+if st.sidebar.button("Reinitialiser les filtres"):
+    st.rerun()
+
+# Dataframes filtres, utilises dans les onglets Forets et Emissions/Climat
+
+forets_filtre = forets[forets["region_nom_bdd"].isin(regions_selectionnees)]
+temperatures_filtre = temperatures[temperatures["villes"].isin(villes_selectionnees)]
 
 # -----------------------------------------------------------------
 # En-tete
@@ -165,26 +192,27 @@ with onglets[2]:
         st.caption("Le secteur AFAT (agriculture, foresterie, terres) domine largement "
                     "les emissions - l'energie ne represente que 6.2 %.")
 
-    with col2:
-        st.subheader("Temperatures maximales par ville (2013-2019)")
-        temp_max = temperatures[temperatures["libellés"] == "Températures maximales"]
-        moyenne = temp_max.groupby("villes", as_index=False)["Value"].mean().sort_values("Value")
-        fig = px.bar(
-            moyenne, x="Value", y="villes", orientation="h",
-            labels={"Value": "Temperature (°C)", "villes": ""},
-            title="Temperature maximale moyenne par ville",
+        with col2:
+            st.subheader("Temperatures maximales par ville (2013-2019)")
+            temp_max = temperatures_filtre[temperatures_filtre["libellés"] == "Températures maximales"]
+            moyenne = temp_max.groupby("villes", as_index=False)["Value"].mean().sort_values("Value")
+            fig = px.bar(
+                moyenne, x="Value", y="villes", orientation="h",
+                labels={"Value": "Temperature (°C)", "villes": ""},
+                title="Temperature maximale moyenne par ville",
         )
         st.plotly_chart(fig, use_container_width=True)
+
 
 # -----------------------------------------------------------------
 # Onglet 4 : Forets
 # -----------------------------------------------------------------
 with onglets[3]:
-    st.subheader("53 forets classees et zones protegees")
+    st.subheader(f"Forets classees et zones protegees ({len(forets_filtre)} sur 53)")
 
     col1, col2 = st.columns([1, 2])
     with col1:
-        par_region = forets["region_nom_bdd"].value_counts().reset_index()
+        par_region = forets_filtre["region_nom_bdd"].value_counts().reset_index()
         par_region.columns = ["Region", "Nombre de forets"]
         fig = px.bar(
             par_region, x="Region", y="Nombre de forets", color="Region",
@@ -194,7 +222,7 @@ with onglets[3]:
 
     with col2:
         st.dataframe(
-            forets[["etab_nom", "region_nom_bdd", "prefecture_nom_bdd", "etab_creation_date"]]
+            forets_filtre[["etab_nom", "region_nom_bdd", "prefecture_nom_bdd", "etab_creation_date"]]
             .rename(columns={
                 "etab_nom": "Foret / zone",
                 "region_nom_bdd": "Region",
@@ -203,6 +231,39 @@ with onglets[3]:
             }),
             use_container_width=True, height=400,
         )
+
+    st.markdown("#### Carte des forets classees et zones protegees")
+
+    couleurs_region = {
+        "Maritime": "#1f77b4",
+        "Plateaux": "#2ca02c",
+        "Centrale": "#ff7f0e",
+        "Kara": "#9467bd",
+        "Savanes": "#d62728",
+    }
+
+    carte = folium.Map(location=[8.6, 1.0], zoom_start=7, tiles="OpenStreetMap")
+
+    for _, ligne in forets_filtre.iterrows():
+        try:
+            geometrie = wkt.loads(ligne["geometry"])
+            couleur = couleurs_region.get(ligne["region_nom_bdd"], "#808080")
+
+            geojson_layer = folium.GeoJson(
+                geometrie.__geo_interface__,
+                style_function=lambda feature, c=couleur: {
+                    "fillColor": c,
+                    "color": c,
+                    "weight": 1.5,
+                    "fillOpacity": 0.4,
+                },
+                tooltip=f"{ligne['etab_nom']} ({ligne['region_nom_bdd']})",
+            )
+            geojson_layer.add_to(carte)
+        except Exception:
+            continue
+
+    st_folium(carte, use_container_width=True, height=500)
 
 # -----------------------------------------------------------------
 # Onglet 5 : Recommandations
