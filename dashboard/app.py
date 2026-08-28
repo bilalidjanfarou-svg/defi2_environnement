@@ -27,22 +27,36 @@ st.markdown("""
 /* En-tete avec bandeau degrade */
 .main-header {
     background: linear-gradient(135deg, #1b4332 0%, #2ca02c 50%, #f4a261 100%);
-    padding: 2rem 2.5rem;
-    border-radius: 12px;
+    padding: 1.8rem 3rem;
     margin-bottom: 1.5rem;
     color: white;
+    width: 100vw;
+    position: relative;
+    left: 50%;
+    right: 50%;
+    margin-left: -50vw;
+    margin-right: -50vw;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 110px;
 }
 .main-header h1 {
     color: white;
     margin: 0;
-    font-size: 2.1rem;
+    font-size: 1.7rem;
+    font-weight: 700;
+    line-height: 1.3;
 }
 .main-header p {
     color: #e8f5e9;
-    margin: 0.3rem 0 0 0;
-    font-size: 1rem;
+    margin: 0.4rem 0 0 0;
+    font-size: 0.95rem;
 }
-
+div.block-container {
+    padding-top: 1rem;
+}
 /* Cartes metriques */
 div[data-testid="stMetric"] {
     background-color: #f8f9f5;
@@ -124,6 +138,11 @@ if st.sidebar.button("Reinitialiser les filtres"):
 forets_filtre = forets[forets["region_nom_bdd"].isin(regions_selectionnees)]
 temperatures_filtre = temperatures[temperatures["villes"].isin(villes_selectionnees)]
 
+annee_min, annee_max = st.sidebar.slider(
+    "Periode (electrification)",
+    min_value=1998, max_value=2022, value=(1998, 2022),
+)
+
 # -----------------------------------------------------------------
 # En-tete
 # -----------------------------------------------------------------
@@ -159,6 +178,7 @@ with onglets[0]:
         "Access to electricity, rural (% of rural population)",
     ]
     df_elec = indicateurs[indicateurs["Indicator Name"].isin(indics_elec)]
+    df_elec = df_elec[df_elec["Year"].between(annee_min, annee_max)]
     fig = px.line(
         df_elec, x="Year", y="Value", color="Indicator Name", markers=True,
         labels={"Value": "% de la population", "Year": "Annee", "Indicator Name": "Zone"},
@@ -211,14 +231,14 @@ with onglets[2]:
         st.caption("Le secteur AFAT (agriculture, foresterie, terres) domine largement "
                     "les emissions - l'energie ne represente que 6.2 %.")
 
-        with col2:
-            st.subheader("Temperatures maximales par ville (2013-2019)")
-            temp_max = temperatures_filtre[temperatures_filtre["libellés"] == "Températures maximales"]
-            moyenne = temp_max.groupby("villes", as_index=False)["Value"].mean().sort_values("Value")
-            fig = px.bar(
-                moyenne, x="Value", y="villes", orientation="h",
-                labels={"Value": "Temperature (°C)", "villes": ""},
-                title="Temperature maximale moyenne par ville",
+    with col2:
+        st.subheader("Temperatures maximales par ville (2013-2019)")
+        temp_max = temperatures_filtre[temperatures_filtre["libellés"] == "Températures maximales"]
+        moyenne = temp_max.groupby("villes", as_index=False)["Value"].mean().sort_values("Value")
+        fig = px.bar(
+            moyenne, x="Value", y="villes", orientation="h",
+            labels={"Value": "Temperature (°C)", "villes": ""},
+            title="Temperature maximale moyenne par ville",
         )
         st.plotly_chart(fig, use_container_width=True)
 
@@ -281,8 +301,15 @@ with onglets[3]:
             geojson_layer.add_to(carte)
         except Exception:
             continue
-
     st_folium(carte, use_container_width=True, height=500)
+
+    st.download_button(
+        "Telecharger les forets filtrees (CSV)",
+        data=forets_filtre.to_csv(index=False).encode("utf-8"),
+        file_name="forets_filtrees.csv",
+        mime="text/csv",
+    )
+
 
 # -----------------------------------------------------------------
 # Onglet 5 : Recommandations
