@@ -118,7 +118,7 @@ indicateurs, temperatures, ges, forets, kpis = charger_donnees()
 # -----------------------------------------------------------------
 # Sidebar - Filtres
 # -----------------------------------------------------------------
-st.sidebar.header("🔎 Filtres")
+st.sidebar.caption("Affinez les analyses par region, ville et periode.")
 
 toutes_regions = sorted(forets["region_nom_bdd"].unique())
 regions_selectionnees = st.sidebar.multiselect(
@@ -232,13 +232,20 @@ with onglets[2]:
                     "les emissions - l'energie ne represente que 6.2 %.")
 
     with col2:
-        st.subheader("Temperatures maximales par ville (2013-2019)")
-        temp_max = temperatures_filtre[temperatures_filtre["libellés"] == "Températures maximales"]
-        moyenne = temp_max.groupby("villes", as_index=False)["Value"].mean().sort_values("Value")
+        st.subheader("Temperatures par ville (2013-2019)")
+
+        type_temp = st.radio(
+            "Afficher", ["Maximales", "Minimales"], horizontal=True, key="type_temp",
+        )
+        libelle = f"Températures {type_temp.lower()}"
+
+        temp_choisie = temperatures_filtre[temperatures_filtre["libellés"] == libelle]
+        moyenne = temp_choisie.groupby("villes", as_index=False)["Value"].mean().sort_values("Value")
         fig = px.bar(
             moyenne, x="Value", y="villes", orientation="h",
             labels={"Value": "Temperature (°C)", "villes": ""},
-            title="Temperature maximale moyenne par ville",
+            title=f"Temperature {type_temp.lower()} moyenne par ville",
+            color_discrete_sequence=["#E07A29"] if type_temp == "Maximales" else ["#4A90D9"],
         )
         st.plotly_chart(fig, use_container_width=True)
 
