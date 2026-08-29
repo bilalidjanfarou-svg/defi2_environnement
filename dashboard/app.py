@@ -4,15 +4,14 @@ Tableau de bord interactif - Defi 2 Environnement (Togo AI Lab).
 Usage :
     streamlit run dashboard/app.py
 """
-
-import folium
-from shapely import wkt
-from streamlit_folium import st_folium
 from pathlib import Path
 
+import folium
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from shapely import wkt
+from streamlit_folium import st_folium
 
 CLEAN_DIR = Path(__file__).resolve().parent.parent / "data" / "clean"
 
@@ -24,7 +23,7 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-/* En-tete avec bandeau degrade */
+/* En-tete plein ecran */
 .main-header {
     background: linear-gradient(135deg, #1b4332 0%, #2ca02c 50%, #f4a261 100%);
     padding: 1.8rem 3rem;
@@ -57,6 +56,7 @@ st.markdown("""
 div.block-container {
     padding-top: 1rem;
 }
+
 /* Cartes metriques */
 div[data-testid="stMetric"] {
     background-color: #f8f9f5;
@@ -115,9 +115,18 @@ def charger_donnees():
 
 indicateurs, temperatures, ges, forets, kpis = charger_donnees()
 
+VILLE_VERS_REGION = {
+    "Lomé": "Maritime", "Tabligbo": "Maritime",
+    "Atakpamé": "Plateaux", "Kouma konda": "Plateaux",
+    "Sokodé": "Centrale", "Sotouboua": "Centrale",
+    "Kara": "Kara", "Niamtougou": "Kara",
+    "Dapaong": "Savanes", "Mango": "Savanes",
+}
+
 # -----------------------------------------------------------------
 # Sidebar - Filtres
 # -----------------------------------------------------------------
+st.sidebar.header("🔎 Filtres")
 st.sidebar.caption("Affinez les analyses par region, ville et periode.")
 
 toutes_regions = sorted(forets["region_nom_bdd"].unique())
@@ -130,18 +139,17 @@ villes_selectionnees = st.sidebar.multiselect(
     "Ville (temperatures)", options=toutes_villes, default=toutes_villes,
 )
 
-if st.sidebar.button("Reinitialiser les filtres"):
-    st.rerun()
-
-# Dataframes filtres, utilises dans les onglets Forets et Emissions/Climat
-
-forets_filtre = forets[forets["region_nom_bdd"].isin(regions_selectionnees)]
-temperatures_filtre = temperatures[temperatures["villes"].isin(villes_selectionnees)]
-
 annee_min, annee_max = st.sidebar.slider(
     "Periode (electrification)",
     min_value=1998, max_value=2022, value=(1998, 2022),
 )
+
+if st.sidebar.button("Reinitialiser les filtres"):
+    st.rerun()
+
+# Dataframes filtres, utilises dans les onglets
+forets_filtre = forets[forets["region_nom_bdd"].isin(regions_selectionnees)]
+temperatures_filtre = temperatures[temperatures["villes"].isin(villes_selectionnees)]
 
 # -----------------------------------------------------------------
 # En-tete
@@ -158,11 +166,12 @@ onglets = st.tabs([
     "🔥 Cuisson & combustibles",
     "🌫️ Emissions & climat",
     "🌳 Forets",
+    "🔬 Analyse croisee",
     "💡 Recommandations",
 ])
 
 # -----------------------------------------------------------------
-# Onglet 1 : Electricite
+# Onglet 0 : Electricite
 # -----------------------------------------------------------------
 with onglets[0]:
     st.subheader("Acces a l'electricite : un fort contraste ville / campagne")
@@ -182,12 +191,12 @@ with onglets[0]:
     fig = px.line(
         df_elec, x="Year", y="Value", color="Indicator Name", markers=True,
         labels={"Value": "% de la population", "Year": "Annee", "Indicator Name": "Zone"},
-        title="Evolution de l'acces a l'electricite (1990-2022)",
+        title="Evolution de l'acces a l'electricite",
     )
     st.plotly_chart(fig, use_container_width=True)
 
 # -----------------------------------------------------------------
-# Onglet 2 : Cuisson
+# Onglet 1 : Cuisson
 # -----------------------------------------------------------------
 with onglets[1]:
     st.subheader("Une tres large majorite des menages cuisine encore au bois ou au charbon")
@@ -214,7 +223,7 @@ with onglets[1]:
             "11.9 % ayant acces a des combustibles propres au niveau national.")
 
 # -----------------------------------------------------------------
-# Onglet 3 : Emissions & climat
+# Onglet 2 : Emissions & climat
 # -----------------------------------------------------------------
 with onglets[2]:
     col1, col2 = st.columns(2)
@@ -233,7 +242,6 @@ with onglets[2]:
 
     with col2:
         st.subheader("Temperatures par ville (2013-2019)")
-
         type_temp = st.radio(
             "Afficher", ["Maximales", "Minimales"], horizontal=True, key="type_temp",
         )
@@ -249,9 +257,8 @@ with onglets[2]:
         )
         st.plotly_chart(fig, use_container_width=True)
 
-
 # -----------------------------------------------------------------
-# Onglet 4 : Forets
+# Onglet 3 : Forets
 # -----------------------------------------------------------------
 with onglets[3]:
     st.subheader(f"Forets classees et zones protegees ({len(forets_filtre)} sur 53)")
@@ -308,6 +315,7 @@ with onglets[3]:
             geojson_layer.add_to(carte)
         except Exception:
             continue
+
     st_folium(carte, use_container_width=True, height=500)
 
     st.download_button(
@@ -317,11 +325,81 @@ with onglets[3]:
         mime="text/csv",
     )
 
+# -----------------------------------------------------------------
+# Onglet 4 : Analyse croisee
+# -----------------------------------------------------------------
+with onglets[4]:
+    st.subheader("Croisement chaleur x couverture forestiere x electrification, par region")
+
+    temp_max_tout = temperatures[temperatures["libellés"] == "Températures maximales"].copy()
+    temp_max_tout["Region"] = temp_max_tout["villes"].map(VILLE_VERS_REGION)
+    temp_par_region = temp_max_tout.dropna(subset=["Region"]).groupby("Region", as_index=False)["Value"].mean()
+    temp_par_region.columns = ["Region", "Temp. max moyenne (°C)"]
+
+    forets_par_region = forets["region_nom_bdd"].value_counts().reset_index()
+    forets_par_region.columns = ["Region", "Nb forets classees"]
+
+    croise = temp_par_region.merge(forets_par_region, on="Region", how="outer").sort_values(
+        "Temp. max moyenne (°C)", ascending=False
+    )
+    croise["Nb forets classees"] = croise["Nb forets classees"].fillna(0).astype(int)
+
+    col1, col2 = st.columns([3, 2])
+    with col1:
+        fig = px.scatter(
+            croise, x="Temp. max moyenne (°C)", y="Nb forets classees", text="Region",
+            size=[20] * len(croise), color="Region",
+            title="Regions les plus chaudes = regions les moins boisees",
+        )
+        fig.update_traces(textposition="top center")
+        st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        st.dataframe(croise.set_index("Region"), use_container_width=True)
+        region_critique = croise.iloc[0]["Region"]
+        st.error(
+            f"**{region_critique}** cumule la temperature la plus elevee et seulement "
+            f"{int(croise.iloc[0]['Nb forets classees'])} forets classees : c'est la zone "
+            "la plus vulnerable a la pression combinee climat + deforestation."
+        )
+
+    st.markdown("---")
+    st.subheader("Projection : a quelle echeance l'ecart ville-campagne se referme-t-il ?")
+
+    df_elec_proj = indicateurs[indicateurs["Indicator Name"].isin([
+        "Access to electricity, urban (% of urban population)",
+        "Access to electricity, rural (% of rural population)",
+    ])]
+
+    def taux_croissance_annuel(indicateur_nom):
+        s = df_elec_proj[df_elec_proj["Indicator Name"] == indicateur_nom].sort_values("Year")
+        premiere, derniere = s.iloc[0], s.iloc[-1]
+        nb_annees = derniere["Year"] - premiere["Year"]
+        return (derniere["Value"] - premiere["Value"]) / nb_annees, derniere["Value"], derniere["Year"]
+
+    taux_urbain, valeur_urbain, annee_ref = taux_croissance_annuel(
+        "Access to electricity, urban (% of urban population)")
+    taux_rural, valeur_rural, _ = taux_croissance_annuel(
+        "Access to electricity, rural (% of rural population)")
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Progression rurale / an", f"+{taux_rural:.2f} pts/an")
+    col2.metric("Progression urbaine / an", f"+{taux_urbain:.2f} pts/an")
+
+    if taux_rural > 0:
+        annees_pour_100 = (100 - valeur_rural) / taux_rural
+        col3.metric("Delai avant 100% rural au rythme actuel", f"~{annees_pour_100:.0f} ans")
+        st.warning(
+            f"Au rythme observe ({taux_rural:.2f} points par an), l'acces universel en zone "
+            f"rurale ne serait atteint que vers **{int(annee_ref) + annees_pour_100:.0f}**, "
+            "bien au-dela de l'objectif national de 2030. Une acceleration (solaire decentralise) "
+            "est necessaire pour tenir ce delai."
+        )
 
 # -----------------------------------------------------------------
 # Onglet 5 : Recommandations
 # -----------------------------------------------------------------
-with onglets[4]:
+with onglets[5]:
     st.subheader("Recommandations")
     st.markdown("""
 - **Prioriser l'electrification rurale par solaire decentralise** dans les regions
